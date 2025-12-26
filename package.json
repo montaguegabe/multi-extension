@@ -1,8 +1,13 @@
 {
   "name": "multi-sync",
   "displayName": "Multi Sync",
-  "description": "Automatically syncs VS Code and Cursor config files using the multi CLI",
+  "description": "Automatically syncs VS Code and Cursor config files using the multi CLI.  Replacement for VS Code multi-root workspaces.",
   "version": "0.0.1",
+  "publisher": "montaguegabe",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/montaguegabe/multi-extension"
+  },
   "engines": {
     "vscode": "^1.99.0"
   },

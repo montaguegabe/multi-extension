@@ -18,7 +18,10 @@ function isAtWorkspaceRoot(filePath: string): boolean {
   for (const folder of workspaceFolders) {
     const rootVscode = path.join(folder.uri.fsPath, ".vscode");
     const rootCursor = path.join(folder.uri.fsPath, ".cursor");
-    if (filePath.startsWith(rootVscode + path.sep) || filePath.startsWith(rootCursor + path.sep)) {
+    if (
+      filePath.startsWith(rootVscode + path.sep) ||
+      filePath.startsWith(rootCursor + path.sep)
+    ) {
       return true;
     }
   }
@@ -62,7 +65,9 @@ function executeSync(type: "vscode" | "claude", changedFile: string) {
   exec(command, { cwd: workspaceRoot }, (error, stdout, stderr) => {
     if (error) {
       outputChannel.appendLine(`Error: ${error.message}`);
-      vscode.window.showErrorMessage(`multi sync ${type} failed: ${error.message}`);
+      vscode.window.showErrorMessage(
+        `multi sync ${type} failed: ${error.message}`
+      );
       return;
     }
 
@@ -79,8 +84,8 @@ function executeSync(type: "vscode" | "claude", changedFile: string) {
 }
 
 export function activate(context: vscode.ExtensionContext) {
-  outputChannel = vscode.window.createOutputChannel("Multi Sync");
-  outputChannel.appendLine("Multi Sync extension activated");
+  outputChannel = vscode.window.createOutputChannel("Multi Workspace");
+  outputChannel.appendLine("Multi Workspace extension activated");
 
   // Watch for .vscode config file changes (root folder is filtered out in runMultiSync)
   vscodeWatcher = vscode.workspace.createFileSystemWatcher(

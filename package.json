@@ -1,6 +1,6 @@
 {
-  "name": "multi-sync",
-  "displayName": "Multi Sync",
+  "name": "multi-workspace",
+  "displayName": "Multi Workspace",
   "description": "Automatically syncs VS Code and Cursor config files using the multi CLI.  Replacement for VS Code multi-root workspaces.",
   "version": "0.0.1",
   "publisher": "montaguegabe",
@@ -28,7 +28,7 @@
     "pretest": "npm run compile && npm run lint",
     "lint": "eslint src",
     "test": "vscode-test",
-    "install-extension": "vsce package --allow-missing-repository && cursor --install-extension multi-sync-0.0.1.vsix"
+    "install-extension": "vsce package --allow-missing-repository && cursor --install-extension multi-workspace-0.0.1.vsix"
   },
   "devDependencies": {
     "@types/vscode": "^1.99.0",

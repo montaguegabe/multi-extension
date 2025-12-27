@@ -1,0 +1,5 @@
+{
+  "template": "vscode-extension",
+  "name_snake": "multi_workspace",
+  "name_pretty": "Multi Workspace"
+}

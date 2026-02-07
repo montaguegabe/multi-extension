@@ -4,6 +4,7 @@ import * as vscode from "vscode";
 
 let vscodeWatcher: vscode.FileSystemWatcher | undefined;
 let cursorRulesWatcher: vscode.FileSystemWatcher | undefined;
+let devcontainerWatcher: vscode.FileSystemWatcher | undefined;
 let outputChannel: vscode.OutputChannel;
 
 const pendingSync = new Map<string, NodeJS.Timeout>();
@@ -18,9 +19,11 @@ function isAtWorkspaceRoot(filePath: string): boolean {
   for (const folder of workspaceFolders) {
     const rootVscode = path.join(folder.uri.fsPath, ".vscode");
     const rootCursor = path.join(folder.uri.fsPath, ".cursor");
+    const rootDevcontainer = path.join(folder.uri.fsPath, ".devcontainer");
     if (
       filePath.startsWith(rootVscode + path.sep) ||
-      filePath.startsWith(rootCursor + path.sep)
+      filePath.startsWith(rootCursor + path.sep) ||
+      filePath.startsWith(rootDevcontainer + path.sep)
     ) {
       return true;
     }
@@ -105,11 +108,21 @@ export function activate(context: vscode.ExtensionContext) {
   cursorRulesWatcher.onDidCreate((uri) => runMultiSync("claude", uri.fsPath));
   cursorRulesWatcher.onDidDelete((uri) => runMultiSync("claude", uri.fsPath));
 
-  context.subscriptions.push(outputChannel, vscodeWatcher, cursorRulesWatcher);
+  // Watch for .devcontainer directory changes (root folder is filtered out in runMultiSync)
+  devcontainerWatcher = vscode.workspace.createFileSystemWatcher(
+    "**/.devcontainer/**"
+  );
+
+  devcontainerWatcher.onDidChange((uri) => runMultiSync("vscode", uri.fsPath));
+  devcontainerWatcher.onDidCreate((uri) => runMultiSync("vscode", uri.fsPath));
+  devcontainerWatcher.onDidDelete((uri) => runMultiSync("vscode", uri.fsPath));
+
+  context.subscriptions.push(outputChannel, vscodeWatcher, cursorRulesWatcher, devcontainerWatcher);
 }
 
 export function deactivate() {
   vscodeWatcher?.dispose();
   cursorRulesWatcher?.dispose();
+  devcontainerWatcher?.dispose();
   outputChannel?.dispose();
 }

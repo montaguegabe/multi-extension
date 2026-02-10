@@ -20,7 +20,20 @@
     "onStartupFinished"
   ],
   "main": "./out/extension.js",
-  "contributes": {},
+  "contributes": {
+    "taskDefinitions": [
+      {
+        "type": "multi",
+        "required": ["task"],
+        "properties": {
+          "task": {
+            "type": "string",
+            "description": "The multi command to run"
+          }
+        }
+      }
+    ]
+  },
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",

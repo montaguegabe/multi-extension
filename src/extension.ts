@@ -6,6 +6,7 @@ let vscodeWatcher: vscode.FileSystemWatcher | undefined;
 let cursorRulesWatcher: vscode.FileSystemWatcher | undefined;
 let devcontainerWatcher: vscode.FileSystemWatcher | undefined;
 let outputChannel: vscode.OutputChannel;
+let taskProvider: vscode.Disposable | undefined;
 
 const pendingSync = new Map<string, NodeJS.Timeout>();
 const DEBOUNCE_MS = 300;
@@ -54,6 +55,33 @@ function runMultiSync(type: "vscode" | "claude", changedFile: string) {
   );
 }
 
+class MultiTaskProvider implements vscode.TaskProvider {
+  static MultiType = "multi";
+
+  provideTasks(): vscode.Task[] {
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    if (!workspaceRoot) {
+      return [];
+    }
+
+    const syncTask = new vscode.Task(
+      { type: MultiTaskProvider.MultiType, task: "sync" },
+      vscode.TaskScope.Workspace,
+      "Sync",
+      "multi",
+      new vscode.ShellExecution("multi sync"),
+      []
+    );
+    syncTask.group = vscode.TaskGroup.Build;
+
+    return [syncTask];
+  }
+
+  resolveTask(task: vscode.Task): vscode.Task | undefined {
+    return task;
+  }
+}
+
 function executeSync(type: "vscode" | "claude", changedFile: string) {
   const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
   if (!workspaceRoot) {
@@ -90,6 +118,12 @@ export function activate(context: vscode.ExtensionContext) {
   outputChannel = vscode.window.createOutputChannel("Multi Workspace");
   outputChannel.appendLine("Multi Workspace extension activated");
 
+  // Register task provider
+  taskProvider = vscode.tasks.registerTaskProvider(
+    MultiTaskProvider.MultiType,
+    new MultiTaskProvider()
+  );
+
   // Watch for .vscode config file changes (root folder is filtered out in runMultiSync)
   vscodeWatcher = vscode.workspace.createFileSystemWatcher(
     "**/.vscode/{launch,settings,tasks,extensions}.json"
@@ -117,12 +151,13 @@ export function activate(context: vscode.ExtensionContext) {
   devcontainerWatcher.onDidCreate((uri) => runMultiSync("vscode", uri.fsPath));
   devcontainerWatcher.onDidDelete((uri) => runMultiSync("vscode", uri.fsPath));
 
-  context.subscriptions.push(outputChannel, vscodeWatcher, cursorRulesWatcher, devcontainerWatcher);
+  context.subscriptions.push(outputChannel, vscodeWatcher, cursorRulesWatcher, devcontainerWatcher, taskProvider);
 }
 
 export function deactivate() {
   vscodeWatcher?.dispose();
   cursorRulesWatcher?.dispose();
   devcontainerWatcher?.dispose();
+  taskProvider?.dispose();
   outputChannel?.dispose();
 }

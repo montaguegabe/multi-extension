@@ -55,15 +55,35 @@ function runMultiSync(type: "vscode" | "claude", changedFile: string) {
   );
 }
 
+type OpenInDesktopResult = {
+  success: boolean;
+  message: string;
+};
+
+async function openActiveFileInMultiDesktop(): Promise<OpenInDesktopResult> {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor) {
+    return { success: false, message: "No active editor." };
+  }
+
+  if (editor.document.uri.scheme !== "file") {
+    return { success: false, message: "Active editor is not a file." };
+  }
+
+  const filePath = editor.document.uri.fsPath;
+  const deepLink = `multi://open?path=${encodeURIComponent(filePath)}`;
+  const opened = await vscode.env.openExternal(vscode.Uri.parse(deepLink));
+  if (!opened) {
+    return { success: false, message: "Unable to open Multi Desktop deep link." };
+  }
+
+  return { success: true, message: `Opened in Multi Desktop: ${filePath}` };
+}
+
 class MultiTaskProvider implements vscode.TaskProvider {
   static MultiType = "multi";
 
-  provideTasks(): vscode.Task[] {
-    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-    if (!workspaceRoot) {
-      return [];
-    }
-
+  private createSyncTask(): vscode.Task {
     const syncTask = new vscode.Task(
       { type: MultiTaskProvider.MultiType, task: "sync" },
       vscode.TaskScope.Workspace,
@@ -73,12 +93,61 @@ class MultiTaskProvider implements vscode.TaskProvider {
       []
     );
     syncTask.group = vscode.TaskGroup.Build;
+    return syncTask;
+  }
 
-    return [syncTask];
+  private createOpenCurrentFileTask(): vscode.Task {
+    const openCurrentFileTask = new vscode.Task(
+      { type: MultiTaskProvider.MultiType, task: "open-current-file" },
+      vscode.TaskScope.Workspace,
+      "Open in Multi Desktop",
+      "multi",
+      new vscode.CustomExecution(async () => {
+        return new OpenCurrentFileTaskTerminal();
+      }),
+      []
+    );
+    return openCurrentFileTask;
+  }
+
+  provideTasks(): vscode.Task[] {
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    if (!workspaceRoot) {
+      return [];
+    }
+
+    return [this.createSyncTask(), this.createOpenCurrentFileTask()];
   }
 
   resolveTask(task: vscode.Task): vscode.Task | undefined {
-    return task;
+    const definition = task.definition as { task?: string };
+    if (definition.task === "sync") {
+      return this.createSyncTask();
+    }
+    if (definition.task === "open-current-file") {
+      return this.createOpenCurrentFileTask();
+    }
+    return undefined;
+  }
+}
+
+class OpenCurrentFileTaskTerminal implements vscode.Pseudoterminal {
+  private readonly writeEmitter = new vscode.EventEmitter<string>();
+  private readonly closeEmitter = new vscode.EventEmitter<number>();
+
+  readonly onDidWrite = this.writeEmitter.event;
+  readonly onDidClose = this.closeEmitter.event;
+
+  open(): void {
+    void this.run();
+  }
+
+  close(): void {}
+
+  private async run(): Promise<void> {
+    const result = await openActiveFileInMultiDesktop();
+    this.writeEmitter.fire(`${result.message}\r\n`);
+    this.closeEmitter.fire(result.success ? 0 : 1);
   }
 }
 
@@ -118,6 +187,25 @@ export function activate(context: vscode.ExtensionContext) {
   outputChannel = vscode.window.createOutputChannel("Multi Workspace");
   outputChannel.appendLine("Multi Workspace extension activated");
 
+  const runOpenInDesktopCommand = async () => {
+    const result = await openActiveFileInMultiDesktop();
+    if (!result.success) {
+      vscode.window.showErrorMessage(result.message);
+      return;
+    }
+
+    outputChannel.appendLine(result.message);
+  };
+
+  const openInDesktopCommands = [
+    vscode.commands.registerCommand(
+      "multi-sync.openInDesktop",
+      runOpenInDesktopCommand
+    ),
+    // Backward-compatible alias for existing keybindings.
+    vscode.commands.registerCommand("multi.openInDesktop", runOpenInDesktopCommand),
+  ];
+
   // Register task provider
   taskProvider = vscode.tasks.registerTaskProvider(
     MultiTaskProvider.MultiType,
@@ -151,7 +239,14 @@ export function activate(context: vscode.ExtensionContext) {
   devcontainerWatcher.onDidCreate((uri) => runMultiSync("vscode", uri.fsPath));
   devcontainerWatcher.onDidDelete((uri) => runMultiSync("vscode", uri.fsPath));
 
-  context.subscriptions.push(outputChannel, vscodeWatcher, cursorRulesWatcher, devcontainerWatcher, taskProvider);
+  context.subscriptions.push(
+    outputChannel,
+    vscodeWatcher,
+    cursorRulesWatcher,
+    devcontainerWatcher,
+    taskProvider,
+    ...openInDesktopCommands
+  );
 }
 
 export function deactivate() {

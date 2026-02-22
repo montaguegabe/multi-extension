@@ -15,6 +15,18 @@
 				"kind": "build",
 				"isDefault": true
 			}
+		},
+		{
+			"type": "npm",
+			"script": "install-extension",
+			"problemMatcher": [],
+			"label": "npm: install-extension (local)"
+		},
+		{
+			"label": "Open in Multi Desktop",
+			"type": "multi",
+			"task": "open-current-file",
+			"problemMatcher": []
 		}
 	]
 }

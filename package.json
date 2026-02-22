@@ -17,10 +17,18 @@
     "Other"
   ],
   "activationEvents": [
-    "onStartupFinished"
+    "onStartupFinished",
+    "onCommand:multi-sync.openInDesktop",
+    "onCommand:multi.openInDesktop"
   ],
   "main": "./out/extension.js",
   "contributes": {
+    "commands": [
+      {
+        "command": "multi-sync.openInDesktop",
+        "title": "Open in Multi Desktop"
+      }
+    ],
     "taskDefinitions": [
       {
         "type": "multi",

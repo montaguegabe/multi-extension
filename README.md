@@ -8,6 +8,7 @@ NOTE: You must have installed `multi` with `pipx install multi-workspace` or `uv
 
 - Generates files in your root `.vscode` folder when changes are detected in sub-repo `launch.json`, `tasks.json`, and `settings.json` files.
 - Generates `CLAUDE.md` files when Cursor rules change.
+- Syncs root `.github/workflows` files when sub-repo workflow files change.
 
 ## Requirements
 
@@ -29,3 +30,4 @@ Watched files:
 - `.vscode/tasks.json`
 - `.vscode/extensions.json`
 - `.cursor/rules/*`
+- `.github/workflows/*.{yml,yaml}`

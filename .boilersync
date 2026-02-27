@@ -1,5 +1,5 @@
 {
-  "template": "https://github.com/openbase-community/openbase-boilerplate.git#vscode-extension",
+  "template": "https://github.com/openbase-community/templates.git#vscode-extension",
   "name_snake": "multi_workspace",
   "name_pretty": "Multi Workspace",
   "variables": {}

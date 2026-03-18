@@ -2,6 +2,8 @@ import { exec } from "child_process";
 import path from "path";
 import * as vscode from "vscode";
 
+import { getSyncCommand, SyncType } from "./sync";
+
 let vscodeWatcher: vscode.FileSystemWatcher | undefined;
 let cursorRulesWatcher: vscode.FileSystemWatcher | undefined;
 let devcontainerWatcher: vscode.FileSystemWatcher | undefined;
@@ -35,7 +37,7 @@ function isAtWorkspaceRoot(filePath: string): boolean {
   return false;
 }
 
-function runMultiSync(type: "vscode" | "claude" | "github", changedFile: string) {
+function runMultiSync(type: SyncType, changedFile: string) {
   // Debounce: cancel any pending sync for this type and schedule a new one
   const existing = pendingSync.get(type);
   if (existing) {
@@ -154,17 +156,13 @@ class OpenCurrentFileTaskTerminal implements vscode.Pseudoterminal {
   }
 }
 
-function executeSync(
-  type: "vscode" | "claude" | "github",
-  changedFile: string
-) {
+function executeSync(type: SyncType, changedFile: string) {
   const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
   if (!workspaceRoot) {
     return;
   }
 
-  const syncCommand =
-    type === "claude" ? "multi sync rules" : `multi sync ${type}`;
+  const syncCommand = getSyncCommand(type);
 
   outputChannel.appendLine(`File changed: ${changedFile}`);
   outputChannel.appendLine(`Running: ${syncCommand}`);
@@ -233,9 +231,9 @@ export function activate(context: vscode.ExtensionContext) {
     "**/.cursor/rules/**"
   );
 
-  cursorRulesWatcher.onDidChange((uri) => runMultiSync("claude", uri.fsPath));
-  cursorRulesWatcher.onDidCreate((uri) => runMultiSync("claude", uri.fsPath));
-  cursorRulesWatcher.onDidDelete((uri) => runMultiSync("claude", uri.fsPath));
+  cursorRulesWatcher.onDidChange((uri) => runMultiSync("rules", uri.fsPath));
+  cursorRulesWatcher.onDidCreate((uri) => runMultiSync("rules", uri.fsPath));
+  cursorRulesWatcher.onDidDelete((uri) => runMultiSync("rules", uri.fsPath));
 
   // Watch for .devcontainer directory changes (root folder is filtered out in runMultiSync)
   devcontainerWatcher = vscode.workspace.createFileSystemWatcher(

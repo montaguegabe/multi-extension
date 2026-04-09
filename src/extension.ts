@@ -1,61 +1,108 @@
+import fs from "fs";
 import { exec } from "child_process";
 import path from "path";
 import * as vscode from "vscode";
 
-import { getSyncCommand, SyncType } from "./sync";
+import {
+  getRelativePathToWorkspace,
+  getSyncCommandForRelativePath,
+  shouldSkipSyncForRelativePath,
+  type SyncCommand,
+} from "./sync";
 
 let vscodeWatcher: vscode.FileSystemWatcher | undefined;
 let cursorRulesWatcher: vscode.FileSystemWatcher | undefined;
 let devcontainerWatcher: vscode.FileSystemWatcher | undefined;
 let githubWatcher: vscode.FileSystemWatcher | undefined;
+let multiConfigWatcher: vscode.FileSystemWatcher | undefined;
 let outputChannel: vscode.OutputChannel;
 let taskProvider: vscode.Disposable | undefined;
 
-const pendingSync = new Map<string, NodeJS.Timeout>();
+const pendingSync = new Map<SyncCommand, NodeJS.Timeout>();
 const DEBOUNCE_MS = 300;
 
-function isAtWorkspaceRoot(filePath: string): boolean {
+function getWorkspaceRootForFile(filePath: string): string | undefined {
   const workspaceFolders = vscode.workspace.workspaceFolders;
   if (!workspaceFolders) {
-    return false;
+    return undefined;
   }
 
   for (const folder of workspaceFolders) {
-    const rootVscode = path.join(folder.uri.fsPath, ".vscode");
-    const rootCursor = path.join(folder.uri.fsPath, ".cursor");
-    const rootDevcontainer = path.join(folder.uri.fsPath, ".devcontainer");
-    const rootGithub = path.join(folder.uri.fsPath, ".github");
+    const workspaceRoot = folder.uri.fsPath;
     if (
-      filePath.startsWith(rootVscode + path.sep) ||
-      filePath.startsWith(rootCursor + path.sep) ||
-      filePath.startsWith(rootDevcontainer + path.sep) ||
-      filePath.startsWith(rootGithub + path.sep)
+      filePath === workspaceRoot ||
+      filePath.startsWith(workspaceRoot + path.sep)
     ) {
-      return true;
+      return workspaceRoot;
     }
   }
-  return false;
+
+  return undefined;
 }
 
-function runMultiSync(type: SyncType, changedFile: string) {
-  // Debounce: cancel any pending sync for this type and schedule a new one
-  const existing = pendingSync.get(type);
+function isMonorepoWorkspace(workspaceRoot: string): boolean {
+  const multiJsonPath = path.join(workspaceRoot, "multi.json");
+  if (!fs.existsSync(multiJsonPath)) {
+    return false;
+  }
+
+  try {
+    const multiJson = JSON.parse(fs.readFileSync(multiJsonPath, "utf-8")) as {
+      monoRepo?: boolean;
+    };
+    return multiJson.monoRepo === true;
+  } catch (error) {
+    outputChannel.appendLine(
+      `Unable to read multi.json while checking monoRepo mode: ${String(error)}`
+    );
+    return false;
+  }
+}
+
+function runMultiSync(changedFile: string) {
+  const workspaceRoot = getWorkspaceRootForFile(changedFile);
+  if (!workspaceRoot) {
+    return;
+  }
+
+  const relativePath = getRelativePathToWorkspace(changedFile, workspaceRoot);
+  if (!relativePath) {
+    return;
+  }
+
+  const syncCommand = getSyncCommandForRelativePath(relativePath);
+  if (!syncCommand) {
+    return;
+  }
+
+  if (
+    syncCommand === "multi sync github" &&
+    !isMonorepoWorkspace(workspaceRoot)
+  ) {
+    outputChannel.appendLine(
+      `Skipping non-monorepo GitHub workflow change: ${changedFile}`
+    );
+    return;
+  }
+
+  const existing = pendingSync.get(syncCommand);
   if (existing) {
     clearTimeout(existing);
   }
 
   pendingSync.set(
-    type,
+    syncCommand,
     setTimeout(() => {
-      pendingSync.delete(type);
+      pendingSync.delete(syncCommand);
 
-      // Skip files at the workspace root to avoid infinite loops
-      if (isAtWorkspaceRoot(changedFile)) {
-        outputChannel.appendLine(`Skipping root config file: ${changedFile}`);
+      if (
+        shouldSkipSyncForRelativePath(relativePath, changedFile, fs.existsSync)
+      ) {
+        outputChannel.appendLine(`Skipping generated file: ${changedFile}`);
         return;
       }
 
-      executeSync(type, changedFile);
+      executeSync(syncCommand, changedFile, workspaceRoot);
     }, DEBOUNCE_MS)
   );
 }
@@ -156,14 +203,11 @@ class OpenCurrentFileTaskTerminal implements vscode.Pseudoterminal {
   }
 }
 
-function executeSync(type: SyncType, changedFile: string) {
-  const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-  if (!workspaceRoot) {
-    return;
-  }
-
-  const syncCommand = getSyncCommand(type);
-
+function executeSync(
+  syncCommand: SyncCommand,
+  changedFile: string,
+  workspaceRoot: string
+) {
   outputChannel.appendLine(`File changed: ${changedFile}`);
   outputChannel.appendLine(`Running: ${syncCommand}`);
 
@@ -217,41 +261,47 @@ export function activate(context: vscode.ExtensionContext) {
     new MultiTaskProvider()
   );
 
-  // Watch for .vscode config file changes (root folder is filtered out in runMultiSync)
+  // Watch for .vscode config file changes. Generated outputs are filtered in runMultiSync.
   vscodeWatcher = vscode.workspace.createFileSystemWatcher(
-    "**/.vscode/{launch,settings,tasks,extensions}.json"
+    "**/.vscode/{launch,launch.shared,settings,settings.shared,settings.local,tasks,tasks.shared,extensions}.json"
   );
 
-  vscodeWatcher.onDidChange((uri) => runMultiSync("vscode", uri.fsPath));
-  vscodeWatcher.onDidCreate((uri) => runMultiSync("vscode", uri.fsPath));
-  vscodeWatcher.onDidDelete((uri) => runMultiSync("vscode", uri.fsPath));
+  vscodeWatcher.onDidChange((uri) => runMultiSync(uri.fsPath));
+  vscodeWatcher.onDidCreate((uri) => runMultiSync(uri.fsPath));
+  vscodeWatcher.onDidDelete((uri) => runMultiSync(uri.fsPath));
 
-  // Watch for .cursor/rules directory changes (root folder is filtered out in runMultiSync)
+  // Watch for .cursor/rules files. Generated repo-directories.mdc is filtered in runMultiSync.
   cursorRulesWatcher = vscode.workspace.createFileSystemWatcher(
-    "**/.cursor/rules/**"
+    "**/.cursor/rules/*.mdc"
   );
 
-  cursorRulesWatcher.onDidChange((uri) => runMultiSync("rules", uri.fsPath));
-  cursorRulesWatcher.onDidCreate((uri) => runMultiSync("rules", uri.fsPath));
-  cursorRulesWatcher.onDidDelete((uri) => runMultiSync("rules", uri.fsPath));
+  cursorRulesWatcher.onDidChange((uri) => runMultiSync(uri.fsPath));
+  cursorRulesWatcher.onDidCreate((uri) => runMultiSync(uri.fsPath));
+  cursorRulesWatcher.onDidDelete((uri) => runMultiSync(uri.fsPath));
 
-  // Watch for .devcontainer directory changes (root folder is filtered out in runMultiSync)
+  // Watch for .devcontainer directory changes. Root output is filtered in runMultiSync.
   devcontainerWatcher = vscode.workspace.createFileSystemWatcher(
     "**/.devcontainer/**"
   );
 
-  devcontainerWatcher.onDidChange((uri) => runMultiSync("vscode", uri.fsPath));
-  devcontainerWatcher.onDidCreate((uri) => runMultiSync("vscode", uri.fsPath));
-  devcontainerWatcher.onDidDelete((uri) => runMultiSync("vscode", uri.fsPath));
+  devcontainerWatcher.onDidChange((uri) => runMultiSync(uri.fsPath));
+  devcontainerWatcher.onDidCreate((uri) => runMultiSync(uri.fsPath));
+  devcontainerWatcher.onDidDelete((uri) => runMultiSync(uri.fsPath));
 
-  // Watch for .github workflow changes (root folder is filtered out in runMultiSync)
+  // Watch for .github workflow changes. Root output is filtered in runMultiSync.
   githubWatcher = vscode.workspace.createFileSystemWatcher(
     "**/.github/workflows/*.{yml,yaml}"
   );
 
-  githubWatcher.onDidChange((uri) => runMultiSync("github", uri.fsPath));
-  githubWatcher.onDidCreate((uri) => runMultiSync("github", uri.fsPath));
-  githubWatcher.onDidDelete((uri) => runMultiSync("github", uri.fsPath));
+  githubWatcher.onDidChange((uri) => runMultiSync(uri.fsPath));
+  githubWatcher.onDidCreate((uri) => runMultiSync(uri.fsPath));
+  githubWatcher.onDidDelete((uri) => runMultiSync(uri.fsPath));
+
+  multiConfigWatcher = vscode.workspace.createFileSystemWatcher("multi.json");
+
+  multiConfigWatcher.onDidChange((uri) => runMultiSync(uri.fsPath));
+  multiConfigWatcher.onDidCreate((uri) => runMultiSync(uri.fsPath));
+  multiConfigWatcher.onDidDelete((uri) => runMultiSync(uri.fsPath));
 
   context.subscriptions.push(
     outputChannel,
@@ -259,6 +309,7 @@ export function activate(context: vscode.ExtensionContext) {
     cursorRulesWatcher,
     devcontainerWatcher,
     githubWatcher,
+    multiConfigWatcher,
     taskProvider,
     ...openInDesktopCommands
   );
@@ -269,6 +320,7 @@ export function deactivate() {
   cursorRulesWatcher?.dispose();
   devcontainerWatcher?.dispose();
   githubWatcher?.dispose();
+  multiConfigWatcher?.dispose();
   taskProvider?.dispose();
   outputChannel?.dispose();
 }

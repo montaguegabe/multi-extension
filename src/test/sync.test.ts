@@ -7,10 +7,10 @@ import {
 } from "../sync";
 
 suite("Sync Command Test Suite", () => {
-  test("maps cursor rules changes to multi sync rules", () => {
+  test("maps AGENTS parts changes to multi sync agents", () => {
     assert.strictEqual(
-      getSyncCommandForRelativePath("repo/.cursor/rules/project.mdc"),
-      "multi sync rules"
+      getSyncCommandForRelativePath("repo/AGENTS.parts/project.md"),
+      "multi sync agents"
     );
   });
 
@@ -51,13 +51,13 @@ suite("Sync Command Test Suite", () => {
   test("computes workspace-relative paths", () => {
     assert.strictEqual(
       getRelativePathToWorkspace(
-        "/workspace/repo/.cursor/rules/project.mdc",
+        "/workspace/repo/AGENTS.parts/project.md",
         "/workspace"
       ),
-      "repo/.cursor/rules/project.mdc"
+      "repo/AGENTS.parts/project.md"
     );
     assert.strictEqual(
-      getRelativePathToWorkspace("/other/repo/.cursor/rules/project.mdc", "/workspace"),
+      getRelativePathToWorkspace("/other/repo/AGENTS.parts/project.md", "/workspace"),
       undefined
     );
   });
@@ -76,15 +76,8 @@ suite("Sync Command Test Suite", () => {
     );
     assert.strictEqual(
       shouldSkipSyncForRelativePath(
-        ".cursor/rules/repo-directories.mdc",
-        "/workspace/.cursor/rules/repo-directories.mdc"
-      ),
-      true
-    );
-    assert.strictEqual(
-      shouldSkipSyncForRelativePath(
-        ".cursor/rules/project.mdc",
-        "/workspace/.cursor/rules/project.mdc"
+        "AGENTS.parts/project.md",
+        "/workspace/AGENTS.parts/project.md"
       ),
       false
     );

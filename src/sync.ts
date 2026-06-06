@@ -2,7 +2,7 @@ import path from "path";
 
 export type SyncCommand =
   | "multi sync"
-  | "multi sync rules"
+  | "multi sync agents"
   | "multi sync github"
   | "multi sync vscode settings"
   | "multi sync vscode launch"
@@ -78,11 +78,11 @@ export function getSyncCommandForRelativePath(
   }
 
   if (
-    (relativePath.startsWith(".cursor/rules/") ||
-      relativePath.includes("/.cursor/rules/")) &&
-    relativePath.endsWith(".mdc")
+    (relativePath.startsWith("AGENTS.parts/") ||
+      relativePath.includes("/AGENTS.parts/")) &&
+    relativePath.endsWith(".md")
   ) {
-    return "multi sync rules";
+    return "multi sync agents";
   }
 
   if (
@@ -107,10 +107,6 @@ export function shouldSkipSyncForRelativePath(
     relativePath === ".vscode/tasks.json" ||
     relativePath === ".vscode/extensions.json"
   ) {
-    return true;
-  }
-
-  if (relativePath === ".cursor/rules/repo-directories.mdc") {
     return true;
   }
 

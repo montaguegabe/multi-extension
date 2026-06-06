@@ -11,7 +11,7 @@ import {
 } from "./sync";
 
 let vscodeWatcher: vscode.FileSystemWatcher | undefined;
-let cursorRulesWatcher: vscode.FileSystemWatcher | undefined;
+let agentsPartsWatcher: vscode.FileSystemWatcher | undefined;
 let devcontainerWatcher: vscode.FileSystemWatcher | undefined;
 let githubWatcher: vscode.FileSystemWatcher | undefined;
 let multiConfigWatcher: vscode.FileSystemWatcher | undefined;
@@ -270,14 +270,13 @@ export function activate(context: vscode.ExtensionContext) {
   vscodeWatcher.onDidCreate((uri) => runMultiSync(uri.fsPath));
   vscodeWatcher.onDidDelete((uri) => runMultiSync(uri.fsPath));
 
-  // Watch for .cursor/rules files. Generated repo-directories.mdc is filtered in runMultiSync.
-  cursorRulesWatcher = vscode.workspace.createFileSystemWatcher(
-    "**/.cursor/rules/*.mdc"
+  agentsPartsWatcher = vscode.workspace.createFileSystemWatcher(
+    "**/AGENTS.parts/*.md"
   );
 
-  cursorRulesWatcher.onDidChange((uri) => runMultiSync(uri.fsPath));
-  cursorRulesWatcher.onDidCreate((uri) => runMultiSync(uri.fsPath));
-  cursorRulesWatcher.onDidDelete((uri) => runMultiSync(uri.fsPath));
+  agentsPartsWatcher.onDidChange((uri) => runMultiSync(uri.fsPath));
+  agentsPartsWatcher.onDidCreate((uri) => runMultiSync(uri.fsPath));
+  agentsPartsWatcher.onDidDelete((uri) => runMultiSync(uri.fsPath));
 
   // Watch for .devcontainer directory changes. Root output is filtered in runMultiSync.
   devcontainerWatcher = vscode.workspace.createFileSystemWatcher(
@@ -306,7 +305,7 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     outputChannel,
     vscodeWatcher,
-    cursorRulesWatcher,
+    agentsPartsWatcher,
     devcontainerWatcher,
     githubWatcher,
     multiConfigWatcher,
@@ -317,7 +316,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 export function deactivate() {
   vscodeWatcher?.dispose();
-  cursorRulesWatcher?.dispose();
+  agentsPartsWatcher?.dispose();
   devcontainerWatcher?.dispose();
   githubWatcher?.dispose();
   multiConfigWatcher?.dispose();

@@ -8,7 +8,7 @@ NOTE: You must have installed `multi` with `pipx install multi-workspace` or `uv
 
 - Runs the matching `multi sync ...` command when watched source files change.
 - Regenerates root `.vscode` outputs from repo config files and workspace-level shared files.
-- Generates both `CLAUDE.md` and `AGENTS.md` when Cursor rules change.
+- Generates both `CLAUDE.md` and `AGENTS.md` when agent instruction parts change.
 - Syncs root `.github/workflows` files from repo workflows in monorepo mode.
 
 ## Requirements
@@ -34,8 +34,8 @@ Watched files:
 - `.vscode/tasks.json`
 - `.vscode/tasks.shared.json`
 - `.vscode/extensions.json`
-- `.cursor/rules/*.mdc`
+- `AGENTS.parts/*.md`
 - `.github/workflows/*.{yml,yaml}`
 - `multi.json`
 
-The extension ignores generated outputs like root `.vscode/settings.json`, root `.devcontainer/`, root `.github/workflows/`, and root `.cursor/rules/repo-directories.mdc` so it does not loop on its own writes.
+The extension ignores generated outputs like root `.vscode/settings.json`, root `.devcontainer/`, and root `.github/workflows/` so it does not loop on its own writes.

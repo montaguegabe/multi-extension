@@ -1,6 +1,8 @@
 {
   "template": "https://github.com/openbase-community/templates.git#vscode-extension",
+  "template_commit": "7ac7a3eb6f945d6a1cc9bf1e55e7feef9ca97085",
   "name_snake": "multi_workspace",
   "name_pretty": "Multi Workspace",
-  "variables": {}
+  "variables": {},
+  "children": []
 }
